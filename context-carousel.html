@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Stimuler — Roleplay Context (Story Carousel)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #150a20;
+    --panel: #1d1029;
+    --ink: #f3ecfb;
+    --muted: #b09ecb;
+    --purple: #9a6bff;
+    --magenta: #ec4899;
+    --yellow: #ffe14d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #0d0615; color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  /* ─── Stage ─── */
+  .stage {
+    position: relative;
+    width: min(400px, 94vw);
+    aspect-ratio: 9 / 16;
+    max-height: 96vh;
+    background: var(--bg);
+    border-radius: 26px;
+    overflow: hidden;
+    user-select: none;
+  }
+  body.embed { background: #000; }
+  body.embed .stage { width: 100%; height: 100%; max-height: none; aspect-ratio: auto; border-radius: 0; }
+
+  .stage.shake { animation: stageShake .45s linear; }
+  @keyframes stageShake {
+    0%,100% { transform: translate(0,0); }
+    10% { transform: translate(-7px,4px); } 20% { transform: translate(6px,-5px); }
+    30% { transform: translate(-5px,-4px); } 40% { transform: translate(5px,5px); }
+    50% { transform: translate(-4px,2px); } 60% { transform: translate(4px,-2px); }
+    70% { transform: translate(-3px,-3px); } 80% { transform: translate(2px,2px); }
+    90% { transform: translate(-1px,1px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage.shake { animation: none; }
+  }
+
+  /* ─── Progress bars ─── */
+  .progress {
+    position: absolute; top: 10px; left: 10px; right: 10px; z-index: 40;
+    display: flex; gap: 5px;
+  }
+  .pseg { flex: 1; height: 3px; border-radius: 99px; background: rgba(255,255,255,.22); overflow: hidden; }
+  .pseg i { display: block; height: 100%; width: 100%; background: #fff; border-radius: 99px;
+            transform: scaleX(0); transform-origin: left center; }
+
+  /* ─── Top-right controls ─── */
+  .ctrls { position: absolute; top: 22px; right: 10px; z-index: 45; display: flex; gap: 8px; }
+  .ctrl-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+    background: rgba(13,6,21,.55); color: var(--ink); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .ctrl-btn svg { width: 16px; height: 16px; }
+  .ctrl-btn:active { transform: scale(.92); }
+
+  /* ─── Slides ─── */
+  .slide {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none;
+    background: var(--bg);
+  }
+  .slide.on { opacity: 1; pointer-events: auto; }
+  .slide video.story {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  }
+
+  /* dark overlay used for fade-through-dark transitions */
+  .blackout {
+    position: absolute; inset: 0; background: #000; z-index: 60;
+    opacity: 0; pointer-events: none; transition: opacity .2s linear;
+  }
+
+  /* ─── Narrator card — constant scene description, bottom ─── */
+  .narrator {
+    position: absolute; left: 14px; right: 14px; bottom: 3.5%; z-index: 28;
+    background: rgba(248,246,252,.93);
+    border-radius: 22px; padding: 16px 19px;
+    box-shadow: 0 10px 34px rgba(0,0,0,.35);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    font-size: 15px; font-weight: 600; font-style: italic;
+    line-height: 1.45; color: #251c33;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .narrator.in { opacity: 1; transform: translateY(0); }
+
+  /* ─── Thought cloud — character's inner voice, near the head ─── */
+  .cloud {
+    position: absolute; z-index: 30; max-width: 215px;
+    background: #fff; border-radius: 24px;
+    padding: 16px 19px;
+    filter: drop-shadow(0 8px 22px rgba(0,0,0,.32));
+    opacity: 0; transform: scale(.82);
+    transition: opacity .34s ease, transform .34s cubic-bezier(.2,1.1,.3,1.1);
+  }
+  .cloud.in { opacity: 1; transform: scale(1); animation: cloudBob 4.5s ease-in-out .4s infinite; }
+  @keyframes cloudBob {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50% { transform: scale(1) translateY(-4px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cloud.in { animation: none; }
+  }
+  .cloud-text {
+    position: relative; font-size: 14.5px; font-weight: 600; line-height: 1.45;
+    color: #1d1029; min-height: 1.45em;
+  }
+  /* trailing puffs — direction set per slide */
+  .cloud .puff, .cloud .puff2 {
+    position: absolute; background: #fff; border-radius: 50%;
+  }
+  .cloud .puff  { width: 15px; height: 15px; }
+  .cloud .puff2 { width: 8px;  height: 8px; }
+  .cloud.tail-br .puff  { right: -8px;  bottom: -13px; }
+  .cloud.tail-br .puff2 { right: -22px; bottom: -26px; }
+  .cloud.tail-bl .puff  { left: -8px;   bottom: -13px; }
+  .cloud.tail-bl .puff2 { left: -22px;  bottom: -26px; }
+  .cloud.tail-down .puff  { left: 50%; margin-left: -8px;  bottom: -14px; }
+  .cloud.tail-down .puff2 { left: 50%; margin-left: 14px;  bottom: -28px; }
+
+  /* ─── S1: calendar pulse ring ─── */
+  .cal-ring {
+    position: absolute; left: 61%; top: 7.5%; width: 37%; height: 26%; z-index: 20;
+    border: 2.5px solid rgba(255,72,72,.9); border-radius: 14px;
+    opacity: 0; pointer-events: none;
+    box-shadow: 0 0 18px rgba(255,60,60,.45), inset 0 0 18px rgba(255,60,60,.25);
+  }
+  .cal-ring.pulsing { animation: calPulse .83s ease-in-out 3; }
+  @keyframes calPulse {
+    0%, 100% { opacity: 0; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.035); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cal-ring.pulsing { animation: none; opacity: .85; }
+  }
+
+  /* ─── S3: night tint ─── */
+  .night-tint {
+    position: absolute; inset: 0; z-index: 10; pointer-events: none;
+    background: rgba(11,20,48,.25);
+  }
+  #s3 video.story { filter: brightness(.88); }
+
+  /* ─── S4: stacked clips ─── */
+  #s4 video.clipA { z-index: 2; transition: opacity .3s linear; }
+  #s4 video.clipB { z-index: 1; }
+
+  /* ─── S5: the clash ─── */
+  #s5 { background: #0d0615; overflow: hidden; }
+  .clash-half {
+    position: absolute; top: -10%; bottom: -10%; width: 64%; z-index: 1;
+    transition: transform .7s cubic-bezier(.22,.61,.36,1);
+  }
+  .clash-left {
+    left: -7%; transform: translateX(-110%);
+    background: linear-gradient(135deg, #6d3fd9 0%, #4a2496 60%, #2c1260 100%);
+    clip-path: polygon(0 0, 100% 0, 78% 100%, 0 100%);
+  }
+  .clash-right {
+    right: -7%; transform: translateX(110%);
+    background: linear-gradient(225deg, #f25fa7 0%, #c2257c 60%, #7c1150 100%);
+    clip-path: polygon(22% 0, 100% 0, 100% 100%, 0 100%);
+  }
+  .clash-half.in { transform: translateX(0); }
+
+  /* fighters + VS share one vertical band: circle centers sit at
+     calc(--clash-band + half circle), and the VS mark is centered on that line */
+  #s5 { --clash-band: 27%; --fighter-size: 132px; }
+  .fighter {
+    position: absolute; top: var(--clash-band); z-index: 5;
+    width: var(--fighter-size); text-align: center;
+    transition: transform .55s cubic-bezier(.2, .85, .3, 1.22);
+  }
+  .fighter-boss { left: 5%; transform: translateX(-280%); }
+  .fighter-you  { right: 5%; transform: translateX(280%); }
+  .fighter.in   { transform: translateX(0); }
+  .fighter-circle {
+    width: var(--fighter-size); height: var(--fighter-size);
+    border-radius: 50%; overflow: hidden;
+    border: 3px solid rgba(255,255,255,.85);
+    box-shadow: 0 0 34px rgba(0,0,0,.5), 0 0 22px rgba(255,255,255,.18);
+    background: var(--panel);
+  }
+  .fighter-circle video, .fighter-circle img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .fighter-name {
+    margin-top: 12px; font-size: 13px; font-weight: 800; letter-spacing: 1.8px;
+    text-transform: uppercase; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.5);
+  }
+
+  .vs-wrap {
+    position: absolute; left: 50%; top: calc(var(--clash-band) + var(--fighter-size) / 2);
+    transform: translate(-50%,-50%) scale(0);
+    z-index: 6; text-align: center;
+  }
+  .vs-wrap.in { animation: vsPop .55s cubic-bezier(.2, 1.2, .3, 1.15) forwards; }
+  @keyframes vsPop {
+    0% { transform: translate(-50%,-50%) scale(0); }
+    70% { transform: translate(-50%,-50%) scale(1.18); }
+    100% { transform: translate(-50%,-50%) scale(1); }
+  }
+  .vs-mark {
+    font-size: 46px; font-weight: 800; font-style: italic; line-height: 1;
+    background: linear-gradient(180deg, #fff3b0 0%, var(--yellow) 45%, #f59e0b 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 16px rgba(255,225,77,.45));
+  }
+  .vs-bolt { width: 22px; height: 22px; margin: 3px auto 0; display: block;
+             filter: drop-shadow(0 0 10px rgba(255,225,77,.8)); }
+
+  .clash-tagline {
+    position: absolute; left: 0; right: 0; bottom: 24%; z-index: 6; text-align: center;
+    opacity: 0; transform: translateY(10px); transition: opacity .6s ease, transform .6s ease;
+  }
+  .clash-tagline.in { opacity: 1; transform: translateY(0); }
+  .clash-tagline h2 {
+    font-size: 27px; font-weight: 800; letter-spacing: .5px; color: #fff;
+    text-shadow: 0 4px 22px rgba(0,0,0,.55);
+  }
+  .clash-tagline p { margin-top: 7px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.82); letter-spacing: .4px; }
+
+  .flash {
+    position: absolute; inset: 0; background: #fff; z-index: 50;
+    opacity: 0; pointer-events: none;
+  }
+  .flash.go { animation: flashOut .5s ease-out forwards; }
+  @keyframes flashOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ─── S6: the goal ─── */
+  #s6 {
+    background:
+      radial-gradient(ellipse 95% 55% at 50% 0%, rgba(154,107,255,.18) 0%, transparent 62%),
+      radial-gradient(ellipse 80% 45% at 50% 105%, rgba(236,72,153,.10) 0%, transparent 60%),
+      var(--bg);
+  }
+  .goal-inner {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    justify-content: center;                     /* one centered stack, no dead gap */
+    padding: 74px 20px 24px;
+  }
+  .goal-label {
+    text-align: center; font-size: 11px; font-weight: 700; letter-spacing: 2.6px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 24px;
+  }
+  .goal-label b { color: var(--yellow); font-weight: 700; }
+  .goal-heads { display: flex; justify-content: center; align-items: center; gap: 30px; margin-bottom: 38px; }
+  .goal-circle {
+    width: 110px; height: 110px; border-radius: 50%; overflow: hidden;
+    border: 2px solid rgba(255,255,255,.22); background: var(--panel);
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  }
+  .goal-circle video, .goal-circle img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .goal-vs { font-size: 17px; font-weight: 800; font-style: italic; color: var(--yellow); opacity: .9; }
+  .goal-head-name { margin-top: 9px; text-align: center; font-size: 10.5px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: var(--muted); }
+
+  .goal-objective {
+    text-align: center; font-size: 19.5px; font-weight: 700; line-height: 1.5; color: var(--ink);
+    margin: 0 auto 38px; max-width: 330px;
+    text-wrap: balance;
+    opacity: 0; transform: translateY(8px); transition: opacity .55s ease, transform .55s ease;
+  }
+  .goal-objective.in { opacity: 1; transform: translateY(0); }
+  .goal-objective .hl {
+    color: #1a1024; background: var(--yellow); border-radius: 5px; padding: 0 5px;
+    font-weight: 800;
+  }
+
+  .goal-timer {
+    text-align: center; margin: 0 auto 14px; max-width: 320px;   /* sits just above the CTA */
+    font-size: 12.5px; font-weight: 600; color: var(--muted); letter-spacing: .2px;
+    line-height: 1.5;
+    opacity: 0; transform: translateY(6px); transition: opacity .5s ease, transform .5s ease;
+  }
+  .goal-timer.in { opacity: 1; transform: translateY(0); }
+  .goal-timer svg { width: 14px; height: 14px; display: inline-block; vertical-align: -2.5px; margin-right: 4px; color: var(--yellow); }
+  .goal-timer b { color: var(--ink); font-weight: 700; }
+
+  .star-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: auto; }
+  .star-card {
+    position: relative; overflow: hidden;
+    display: flex; gap: 13px; align-items: center;
+    background: var(--panel); border: 1px solid rgba(255,255,255,.10);
+    border-radius: 16px; padding: 15px 16px;
+    opacity: 0; transform: scale(.86);
+  }
+  .star-card.in { animation: cardOn .5s cubic-bezier(.2, 1.1, .3, 1.1) forwards; }
+  @keyframes cardOn { 0% { opacity: 0; transform: scale(.86); } 100% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    .star-card.in { animation: none; opacity: 1; transform: scale(1); }
+    .vs-wrap.in { animation: none; transform: translate(-50%,-50%) scale(1); }
+  }
+  .star-card .shine {
+    position: absolute; top: 0; bottom: 0; width: 46%; left: -60%;
+    background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,.14) 50%, transparent 100%);
+    pointer-events: none;
+  }
+  .star-card.in .shine { animation: shineSweep .9s ease-out .15s forwards; }
+  @keyframes shineSweep { to { left: 120%; } }
+  .star-ico { flex-shrink: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+  .star-ico svg { width: 26px; height: 26px; filter: drop-shadow(0 0 8px rgba(255,225,77,.45)); }
+  .star-card h3 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .star-card p { font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1.4; }
+
+  .goal-cta {
+    position: relative; width: 100%; height: 54px; flex-shrink: 0; border: none; border-radius: 99px;
+    background: linear-gradient(135deg, #b58cff 0%, var(--purple) 55%, #7b46ee 100%);
+    color: #fff; font-family: inherit; font-size: 16px; font-weight: 800; letter-spacing: .4px;
+    cursor: pointer; margin-top: 16px;
+    opacity: 0; transform: translateY(10px); transition: opacity .5s ease, transform .5s ease;
+    box-shadow: 0 10px 30px rgba(154,107,255,.35);
+  }
+  .goal-cta.in { opacity: 1; transform: translateY(0); }
+  .goal-cta.in::after {
+    content: ''; position: absolute; inset: 0; border-radius: 99px; pointer-events: none;
+    animation: ctaPulse 2s ease-out infinite;
+  }
+  @keyframes ctaPulse {
+    0% { box-shadow: 0 0 0 0 rgba(154,107,255,.55); }
+    75% { box-shadow: 0 0 0 16px rgba(154,107,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(154,107,255,0); }
+  }
+  .goal-cta:active { transform: scale(.97); }
+
+  /* ─── Start gate ─── */
+  .gate {
+    position: absolute; inset: 0; z-index: 80; cursor: pointer;
+    background: radial-gradient(ellipse 90% 60% at 50% 30%, rgba(154,107,255,.16) 0%, transparent 60%), #120a1d;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  }
+  .gate.hide { display: none; }
+  .gate-play {
+    width: 74px; height: 74px; border-radius: 50%;
+    background: rgba(154,107,255,.16); border: 1.5px solid rgba(154,107,255,.55);
+    display: flex; align-items: center; justify-content: center;
+    animation: gatePulse 2s ease-out infinite;
+  }
+  @keyframes gatePulse {
+    0% { box-shadow: 0 0 0 0 rgba(154,107,255,.4); }
+    75% { box-shadow: 0 0 0 20px rgba(154,107,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(154,107,255,0); }
+  }
+  .gate-play svg { width: 28px; height: 28px; color: #d9c6ff; margin-left: 4px; }
+  .gate h1 { font-size: 18px; font-weight: 800; letter-spacing: .3px; }
+  .gate p { font-size: 12.5px; font-weight: 600; color: var(--muted); letter-spacing: 1.8px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <div class="progress" id="progress"></div>
+
+  <div class="ctrls">
+    <button class="ctrl-btn" id="muteBtn" title="Mute">
+      <svg id="icoSoundOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+      <svg id="icoSoundOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+    </button>
+    <button class="ctrl-btn" id="closeBtn" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- ═══ S1: The Deadline ═══ -->
+  <div class="slide" id="s1">
+    <video class="story" src="videos/slide1_deadline_silent.mp4" preload="auto" muted playsinline></video>
+    <div class="cal-ring" id="calRing"></div>
+  </div>
+
+  <!-- ═══ S2: Work Done ═══ -->
+  <div class="slide" id="s2">
+    <video class="story" src="videos/slide2_workdone_silent.mp4" preload="auto" muted playsinline></video>
+  </div>
+
+  <!-- ═══ S3: The Ask ═══ -->
+  <div class="slide" id="s3">
+    <video class="story" src="videos/slide3_theask_silent.mp4" preload="auto" muted playsinline></video>
+    <div class="night-tint"></div>
+  </div>
+
+  <!-- ═══ S4: Entering the Cabin (two stitched clips) ═══ -->
+  <div class="slide" id="s4">
+    <video class="story clipB" src="videos/slide4_cabin_silent.mp4" preload="auto" muted playsinline></video>
+    <video class="story clipA" src="videos/slide4a_walk_silent.mp4" preload="auto" muted playsinline></video>
+  </div>
+
+  <!-- ═══ S5: The Clash (coded) ═══ -->
+  <div class="slide" id="s5">
+    <div class="clash-half clash-left" id="clashL"></div>
+    <div class="clash-half clash-right" id="clashR"></div>
+
+    <div class="fighter fighter-boss" id="fighterBoss">
+      <div class="fighter-circle"><img src="img/boss-goal.png" alt="the boss" /></div>
+      <div class="fighter-name">the boss</div>
+    </div>
+    <div class="fighter fighter-you" id="fighterYou">
+      <div class="fighter-circle"><img src="img/you.png" alt="you" /></div>
+      <div class="fighter-name">you</div>
+    </div>
+
+    <div class="vs-wrap" id="vsWrap">
+      <div class="vs-mark">VS</div>
+      <svg class="vs-bolt" viewBox="0 0 24 24" fill="#ffe14d"><path d="M13 2 4.5 13.5h5L9.5 22 19 9.5h-5.5L13 2Z"/></svg>
+    </div>
+
+    <div class="clash-tagline" id="clashTag">
+      <h2>YOU <span style="color:var(--yellow)">vs</span> THE BOSS</h2>
+      <p>one shot. say it right.</p>
+    </div>
+
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <!-- ═══ S6: The Goal (coded, holds) ═══ -->
+  <div class="slide" id="s6">
+    <div class="goal-inner">
+      <div class="goal-label">your mission · earn all <b>3 stars</b></div>
+
+      <div class="goal-heads">
+        <div>
+          <div class="goal-circle"><img src="img/boss-goal.png" alt="the boss" /></div>
+          <div class="goal-head-name">the boss</div>
+        </div>
+        <div class="goal-vs">vs</div>
+        <div>
+          <div class="goal-circle"><img src="img/you.png" alt="you" /></div>
+          <div class="goal-head-name">you</div>
+        </div>
+      </div>
+
+      <div class="goal-objective" id="goalObjective">
+        Goal: Walk out with a <span class="hl">yes</span> for tomorrow off
+      </div>
+
+      <div class="star-cards">
+        <div class="star-card" id="card1">
+          <div class="shine"></div>
+          <div class="star-ico"><svg viewBox="0 0 24 24" fill="#ffe14d"><path d="m12 2 2.9 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 7.1-1.01L12 2Z"/></svg></div>
+          <div><h3>show your work is done</h3><p>your tasks for the week are finished</p></div>
+        </div>
+        <div class="star-card" id="card2">
+          <div class="shine"></div>
+          <div class="star-ico"><svg viewBox="0 0 24 24" fill="#ffe14d"><path d="m12 2 2.9 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 7.1-1.01L12 2Z"/></svg></div>
+          <div><h3>ask right</h3><p>name the day and the reason in one line</p></div>
+        </div>
+        <div class="star-card" id="card3">
+          <div class="shine"></div>
+          <div class="star-ico"><svg viewBox="0 0 24 24" fill="#ffe14d"><path d="m12 2 2.9 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 7.1-1.01L12 2Z"/></svg></div>
+          <div><h3>cover the gap</h3><p>offer a plan before he asks, don't argue</p></div>
+        </div>
+      </div>
+
+      <div class="goal-timer" id="goalTimer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9.5V13l2.2 2.2"/><path d="M9 2.5h6"/></svg>
+        he's rushing to a meeting, you have <b>5 minutes</b> to convince him
+      </div>
+
+      <button class="goal-cta" id="goalCta">start session</button>
+    </div>
+  </div>
+
+  <div class="blackout" id="blackout"></div>
+
+  <!-- ═══ Tap-to-start gate (unlocks WebAudio) ═══ -->
+  <div class="gate" id="gate">
+    <div class="gate-play">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .9.98 1.45 1.74.98l10.3-6.86a1.15 1.15 0 0 0 0-1.96L9.74 4.16A1.15 1.15 0 0 0 8 5.14Z"/></svg>
+    </div>
+    <h1>Asking for Leave</h1>
+    <p>tap to begin</p>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+/* ════════════════════════════════════════════════════════════════
+   Setup
+   ════════════════════════════════════════════════════════════════ */
+var EMBED = /(?:\?|&)embed=1/.test(location.search);
+if (EMBED) document.body.classList.add('embed');
+var RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+var stage = document.getElementById('stage');
+var gate = document.getElementById('gate');
+var blackout = document.getElementById('blackout');
+
+var N_SLIDES = 6;
+var slideEls = [];
+for (var i = 1; i <= N_SLIDES; i++) slideEls.push(document.getElementById('s' + i));
+
+/* progress segments */
+var progressEl = document.getElementById('progress');
+var psegs = [];
+for (var p = 0; p < N_SLIDES; p++) {
+  var seg = document.createElement('div'); seg.className = 'pseg';
+  var fill = document.createElement('i'); seg.appendChild(fill);
+  progressEl.appendChild(seg); psegs.push(fill);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   WebAudio engine — every sound is synthesized in the app layer
+   ════════════════════════════════════════════════════════════════ */
+var AC = null, master = null, muted = false;
+var liveNodes = [];   /* sustained nodes/intervals registered for stop */
+
+function audioInit() {
+  if (AC) return;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain();
+  master.gain.value = muted ? 0 : 1;
+  master.connect(AC.destination);
+}
+function now() { return AC ? AC.currentTime : 0; }
+
+var _noiseBuf = null;
+function noiseBuffer() {
+  if (_noiseBuf) return _noiseBuf;
+  var len = AC.sampleRate * 2;
+  _noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+  var d = _noiseBuf.getChannelData(0);
+  for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return _noiseBuf;
+}
+
+/* register a sustained sound so stopAllAudio can kill it */
+function reg(stopFn) { var h = { stop: stopFn }; liveNodes.push(h); return h; }
+
+function stopAllAudio(hard) {
+  liveNodes.forEach(function (h) { try { h.stop(hard); } catch (e) {} });
+  liveNodes = [];
+}
+
+/* ── sustained beds ── */
+function startHum(level, freq) {            /* filtered-noise room tone */
+  if (!AC) return reg(function(){});
+  var src = AC.createBufferSource(); src.buffer = noiseBuffer(); src.loop = true;
+  var f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq || 280;
+  var g = AC.createGain(); g.gain.value = 0;
+  g.gain.linearRampToValueAtTime(level, now() + 0.6);
+  src.connect(f); f.connect(g); g.connect(master); src.start();
+  return reg(function (hard) {
+    if (hard) { try { src.stop(); } catch(e){} g.disconnect(); }
+    else { g.gain.cancelScheduledValues(now()); g.gain.setValueAtTime(g.gain.value, now());
+           g.gain.linearRampToValueAtTime(0, now() + 0.5); setTimeout(function(){ try{src.stop();}catch(e){} }, 600); }
+  });
+}
+function startPad(freqs, level) {            /* warm soft sine pad */
+  if (!AC) return reg(function(){});
+  var g = AC.createGain(); g.gain.value = 0;
+  g.gain.linearRampToValueAtTime(level, now() + 1.4);
+  var oscs = freqs.map(function (fr, i) {
+    var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = fr;
+    o.detune.value = (i - 1) * 4;
+    var og = AC.createGain(); og.gain.value = 1 / freqs.length;
+    o.connect(og); og.connect(g); o.start(); return o;
+  });
+  g.connect(master);
+  return reg(function (hard) {
+    if (hard) { oscs.forEach(function(o){ try{o.stop();}catch(e){} }); g.disconnect(); }
+    else { g.gain.cancelScheduledValues(now()); g.gain.setValueAtTime(g.gain.value, now());
+           g.gain.linearRampToValueAtTime(0, now() + 0.5);
+           setTimeout(function(){ oscs.forEach(function(o){ try{o.stop();}catch(e){} }); }, 600); }
+  });
+}
+function startRumble(level) {                /* low sawtooth through lowpass, gain-held */
+  if (!AC) return reg(function(){});
+  var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 36;
+  var f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 110;
+  var g = AC.createGain(); g.gain.value = 0;
+  g.gain.linearRampToValueAtTime(level, now() + 0.15);
+  o.connect(f); f.connect(g); g.connect(master); o.start();
+  return reg(function (hard) {
+    if (hard) { try { o.stop(); } catch(e){} g.disconnect(); }
+    else { g.gain.cancelScheduledValues(now()); g.gain.setValueAtTime(g.gain.value, now());
+           g.gain.linearRampToValueAtTime(0, now() + 0.5); setTimeout(function(){ try{o.stop();}catch(e){} }, 600); }
+  });
+}
+function startInterval(fn, ms, fireNow) {    /* registered interval (ticks, heartbeat, pen) */
+  if (fireNow) fn();
+  var id = setInterval(fn, ms);
+  return reg(function () { clearInterval(id); });
+}
+
+/* ── one-shots ── */
+function blip(freq, dur, level, type) {
+  if (!AC) return;
+  var o = AC.createOscillator(); o.type = type || 'sine'; o.frequency.value = freq;
+  var g = AC.createGain(); g.gain.setValueAtTime(level, now());
+  g.gain.exponentialRampToValueAtTime(0.0001, now() + dur);
+  o.connect(g); g.connect(master); o.start(); o.stop(now() + dur + 0.05);
+}
+function noiseBurst(dur, level, filterType, f0, f1) {
+  if (!AC) return;
+  var src = AC.createBufferSource(); src.buffer = noiseBuffer();
+  var f = AC.createBiquadFilter(); f.type = filterType; f.frequency.setValueAtTime(f0, now());
+  if (f1) f.frequency.exponentialRampToValueAtTime(f1, now() + dur);
+  var g = AC.createGain(); g.gain.setValueAtTime(level, now());
+  g.gain.exponentialRampToValueAtTime(0.0001, now() + dur);
+  src.connect(f); f.connect(g); g.connect(master); src.start(); src.stop(now() + dur + 0.05);
+}
+function sfxTick()      { blip(1900, 0.05, 0.025); }
+function sfxWhoosh()    { noiseBurst(0.6, 0.10, 'bandpass', 400, 1600); }
+function sfxCreak()     { noiseBurst(0.5, 0.06, 'bandpass', 140, 90); }
+function sfxChime(freq) {
+  blip(freq, 0.7, 0.16);
+  blip(freq * 2.76, 0.45, 0.05);
+}
+function sfxHeartbeat() {                       /* lub-dub, 0.24s apart */
+  thump(0); thump(0.24);
+  function thump(dt) {
+    var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = 58;
+    var g = AC.createGain(); var t = now() + dt;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.025);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+  }
+}
+function sfxFootstep()  { noiseBurst(0.09, 0.07, 'lowpass', 220); }
+function sfxDoorPush()  { blip(72, 0.3, 0.18); noiseBurst(0.18, 0.06, 'lowpass', 500); }
+function sfxPenTick()   { noiseBurst(0.03, 0.012, 'bandpass', 3800); }
+function sfxRisingWhoosh() { noiseBurst(1.0, 0.16, 'bandpass', 220, 3200); }
+function sfxImpact() {                          /* double hit + bass drop */
+  noiseBurst(0.22, 0.4, 'lowpass', 3500);
+  setTimeout(function () { noiseBurst(0.22, 0.32, 'lowpass', 2500); }, 120);
+  var o = AC.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(120, now());
+  o.frequency.exponentialRampToValueAtTime(38, now() + 0.5);
+  var g = AC.createGain(); g.gain.setValueAtTime(0.5, now());
+  g.gain.exponentialRampToValueAtTime(0.0001, now() + 0.7);
+  o.connect(g); g.connect(master); o.start(); o.stop(now() + 0.8);
+}
+function sfxSwell() {                           /* soft warm rise */
+  if (!AC) return;
+  [261.6, 329.6, 392.0].forEach(function (fr) {
+    var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = fr;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0, now());
+    g.gain.linearRampToValueAtTime(0.05, now() + 0.9);
+    g.gain.linearRampToValueAtTime(0, now() + 2.2);
+    o.connect(g); g.connect(master); o.start(); o.stop(now() + 2.4);
+  });
+}
+
+/* mute */
+var muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', function (e) {
+  e.stopPropagation();
+  muted = !muted;
+  if (master) master.gain.value = muted ? 0 : 1;
+  document.getElementById('icoSoundOn').style.display = muted ? 'none' : 'block';
+  document.getElementById('icoSoundOff').style.display = muted ? 'block' : 'none';
+});
+
+/* close */
+document.getElementById('closeBtn').addEventListener('click', function (e) {
+  e.stopPropagation();
+  stopAllAudio(true); clearSlideTimers();
+  if (EMBED && window.self !== window.top) window.parent.postMessage({ type: 'back' }, '*');
+  else location.reload();
+});
+
+/* ════════════════════════════════════════════════════════════════
+   Story text layers — two components drawn over the video:
+   · narrator card — constant scene description, light, bottom
+   · thought cloud — character inner voice, typewriter ~28ms/char
+   ════════════════════════════════════════════════════════════════ */
+function showNarrator(slideEl, text) {
+  var el = document.createElement('div');
+  el.className = 'narrator';
+  el.textContent = text;
+  slideEl.appendChild(el);
+  requestAnimationFrame(function () { el.classList.add('in'); });
+  return el;
+}
+
+function showCloud(slideEl, opts) {
+  /* opts: { text, tail: 'br'|'bl'|'down', style: positioning css text } */
+  var el = document.createElement('div');
+  el.className = 'cloud tail-' + (opts.tail || 'br');
+  el.style.cssText = opts.style || '';
+  el.innerHTML = '<div class="cloud-text"></div><i class="puff"></i><i class="puff2"></i>';
+  slideEl.appendChild(el);
+  requestAnimationFrame(function () { el.classList.add('in'); });
+
+  var textEl = el.querySelector('.cloud-text');
+  var text = opts.text, i = 0;
+  var tw = setInterval(function () {
+    i++;
+    textEl.textContent = text.slice(0, i);
+    if (i >= text.length) clearInterval(tw);
+  }, 28);
+  slideTimers.push({ clear: function () { clearInterval(tw); } });
+  return el;
+}
+
+function clearBubbles(slideEl) {
+  slideEl.querySelectorAll('.cloud, .narrator').forEach(function (b) { b.remove(); });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Slide engine
+   ════════════════════════════════════════════════════════════════ */
+var current = -1;
+var slideTimers = [];        /* setTimeout handles + custom clears for the active slide */
+var slideStart = 0;          /* performance.now() at slide start */
+var progRaf = null;
+
+function at(sec, fn) {       /* schedule an event on the active slide's timeline */
+  var id = setTimeout(fn, sec * 1000);
+  slideTimers.push({ clear: function () { clearTimeout(id); } });
+}
+function clearSlideTimers() {
+  slideTimers.forEach(function (t) { t.clear(); });
+  slideTimers = [];
+}
+
+function resetVideo(v) { if (!v) return; try { v.pause(); v.currentTime = 0; } catch (e) {} }
+function playVideo(v) {
+  if (!v) return;
+  /* skipping slides can pause() while a play() promise is pending — swallow that */
+  var pr = v.play();
+  if (pr && pr.catch) pr.catch(function () {});
+}
+
+function driveProgress(idx, durMs, holdAtFull) {
+  if (progRaf) cancelAnimationFrame(progRaf);
+  function frame() {
+    var el = Math.min(1, (performance.now() - slideStart) / durMs);
+    psegs[idx].style.transform = 'scaleX(' + el + ')';
+    if (el < 1) progRaf = requestAnimationFrame(frame);
+    else if (!holdAtFull) advance();
+  }
+  progRaf = requestAnimationFrame(frame);
+}
+
+function setProgressStatic(idx) {
+  psegs.forEach(function (f, i) {
+    f.style.transform = 'scaleX(' + (i < idx ? 1 : 0) + ')';
+  });
+}
+
+/* slide definitions: duration (s), holds, start() */
+var SLIDES = [
+
+  /* ── S1 · The Deadline ─────────────────────────────────────── */
+  { dur: 8.0, start: function () {
+      var el = slideEls[0], v = el.querySelector('video');
+      resetVideo(v); playVideo(v);
+      var hum = startHum(0.05, 280);
+      var tick = startInterval(sfxTick, 1000, false);
+      at(0.4, function () {
+        showNarrator(el, 'Your boss is generally serious & he has to hand off a client project tomorrow');
+      });
+      at(0.5, function () {
+        var ring = document.getElementById('calRing');
+        ring.classList.remove('pulsing'); void ring.offsetWidth;
+        ring.classList.add('pulsing');
+        if (RM) at(2.5, function () { ring.style.opacity = 0; });
+      });
+      at(4.0, function () {
+        sfxWhoosh();
+        showCloud(el, {
+          text: 'client handoff tomorrow... are we even ready?',
+          tail: 'br',
+          style: 'left:7%; top:24%;'
+        });
+      });
+      at(7.5, function () { hum.stop(false); tick.stop(true); });
+  }},
+
+  /* ── S2 · Work Done ────────────────────────────────────────── */
+  { dur: 8.0, start: function () {
+      var el = slideEls[1], v = el.querySelector('video');
+      resetVideo(v); playVideo(v);
+      var pad = startPad([196, 247, 294], 0.05);
+      at(0.4, function () {
+        showNarrator(el, "You've finished every task on your plate for the week");
+      });
+      at(0.8, sfxCreak);
+      at(3.5, function () {
+        sfxChime(660);
+        showCloud(el, {
+          text: 'finally, all done for the week.',
+          tail: 'bl',
+          style: 'right:7%; top:26%;'
+        });
+      });
+      at(7.5, function () { pad.stop(false); });
+  }},
+
+  /* ── S3 · The Ask (night tint, ends in dead silence) ───────── */
+  { dur: 9.0, start: function () {
+      var el = slideEls[2], v = el.querySelector('video');
+      resetVideo(v); playVideo(v);
+      var tone = startHum(0.035, 180);
+      var hb;
+      at(0.4, function () {
+        showNarrator(el, 'You need tomorrow off. Asking him is the hard part');
+      });
+      at(0.5, function () { hb = startInterval(sfxHeartbeat, 1200, true); });
+      at(5.5, function () {
+        /* NO chime — lands in the uneasy quiet */
+        showCloud(el, {
+          text: 'i need tomorrow off... but how do i even ask him?',
+          tail: 'bl',
+          style: 'right:6%; top:20%;'
+        });
+      });
+      at(7.0, function () { stopAllAudio(true); }); /* HARD stop — held breath */
+  }},
+
+  /* ── S4 · Entering the Cabin (A→B stitch, the stare) ───────── */
+  { dur: 14.0, start: function () {
+      var el = slideEls[3];
+      var A = el.querySelector('.clipA'), B = el.querySelector('.clipB');
+      A.style.opacity = 1; A.style.display = 'block';
+      resetVideo(A); resetVideo(B);
+      playVideo(A);
+      var hall = startHum(0.04, 240);
+      at(0.4, function () {
+        showNarrator(el, 'That evening, you walk to his cabin to ask him face to face');
+      });
+      [0.8, 1.6, 2.4, 3.2].forEach(function (t) { at(t, sfxFootstep); });
+
+      /* THE STITCH at 5.7s: door-open frames on both clips */
+      at(5.7, function () {
+        playVideo(B);
+        sfxDoorPush();
+        hall.stop(false);
+        A.style.opacity = 0;                 /* 0.3s css transition */
+        at(0.35, function () { A.style.display = 'none'; });
+      });
+      var office, pen;
+      at(6.0, function () {
+        office = startHum(0.03, 320);
+        pen = startInterval(function () { if (Math.random() < 0.8) sfxPenTick(); }, 110, true);
+      });
+
+      /* ~10.2 ANCHOR — his eyes land: ALL audio stops dead */
+      at(10.2, function () { stopAllAudio(true); });
+
+      at(12.0, function () {
+        /* silent, typewriter only — POV shot, so the thought is yours */
+        showCloud(el, {
+          text: 'okay... here goes.',
+          tail: 'down',
+          style: 'left:50%; transform-origin:center; margin-left:-80px; bottom:22%;'
+        });
+      });
+  }},
+
+  /* ── S5 · The Clash (coded, the only loud slide) ───────────── */
+  { dur: 10.0, start: function () {
+      var L = document.getElementById('clashL'), R = document.getElementById('clashR');
+      var FB = document.getElementById('fighterBoss'), FY = document.getElementById('fighterYou');
+      var VS = document.getElementById('vsWrap'), TAG = document.getElementById('clashTag');
+      var FL = document.getElementById('flash');
+      [L, R, FB, FY, TAG].forEach(function (x) { x.classList.remove('in'); });
+      VS.classList.remove('in'); FL.classList.remove('go');
+      var bv = FB.querySelector('video'); resetVideo(bv); playVideo(bv);
+
+      var rumble = null;
+      at(0.06, function () { L.classList.add('in'); R.classList.add('in'); });
+      at(0.9, sfxRisingWhoosh);
+      at(1.5, function () { FB.classList.add('in'); FY.classList.add('in'); });
+      at(1.95, function () {
+        FL.classList.add('go');
+        if (!RM) { stage.classList.add('shake'); at(0.5, function () { stage.classList.remove('shake'); }); }
+        sfxImpact();
+        rumble = startRumble(0.07);
+      });
+      at(2.0, function () { VS.classList.add('in'); });
+      at(3.0, function () { TAG.classList.add('in'); });
+      at(6.5, function () { if (rumble) rumble.stop(false); });
+  }},
+
+  /* ── S6 · The Goal (holds for CTA) ─────────────────────────── */
+  { dur: 10.0, hold: true, start: function () {
+      var obj = document.getElementById('goalObjective');
+      var tmr = document.getElementById('goalTimer');
+      var c1 = document.getElementById('card1'), c2 = document.getElementById('card2'), c3 = document.getElementById('card3');
+      var cta = document.getElementById('goalCta');
+      [obj, tmr, c1, c2, c3, cta].forEach(function (x) { x.classList.remove('in'); });
+      var iv = slideEls[5].querySelector('video'); resetVideo(iv); playVideo(iv);
+
+      at(0.5, function () { obj.classList.add('in'); });
+      at(0.9, function () { tmr.classList.add('in'); });
+      at(1.4, function () { c1.classList.add('in'); sfxChime(523.25); });  /* do */
+      at(3.4, function () { c2.classList.add('in'); sfxChime(659.25); });  /* mi */
+      at(5.4, function () { c3.classList.add('in'); sfxChime(783.99); });  /* so */
+      at(7.6, function () { cta.classList.add('in'); sfxSwell(); });
+  }}
+];
+
+/* transition map: type used when ENTERING slide i (from i-1) */
+var TRANSITIONS = [
+  null,
+  { type: 'crossfade', dur: 400 },   /* S1→S2 tense → calm */
+  { type: 'fadedark',  dur: 400 },   /* S2→S3 day → night worry */
+  { type: 'fade',      dur: 300 },   /* S3→S4 silence carries */
+  { type: 'hardcut',   dur: 0   },   /* S4→S5 the jolt */
+  { type: 'crossfade', dur: 400 }    /* S5→S6 chaos → calm */
+];
+
+function startSlide(i) {
+  current = i;
+  clearBubbles(slideEls[i]);
+  slideStart = performance.now();
+  setProgressStatic(i);
+  driveProgress(i, SLIDES[i].dur * 1000, !!SLIDES[i].hold);
+  SLIDES[i].start();
+}
+
+function leaveSlide() {
+  clearSlideTimers();
+  stopAllAudio(true);
+  if (progRaf) cancelAnimationFrame(progRaf);
+  if (current >= 0) {
+    var el = slideEls[current];
+    el.querySelectorAll('video').forEach(resetVideo);
+    clearBubbles(el);
+    stage.classList.remove('shake');
+  }
+}
+
+function goTo(i, transition) {
+  if (i < 0 || i >= N_SLIDES) return;
+  var from = current;
+  leaveSlide();
+  var fromEl = from >= 0 ? slideEls[from] : null;
+  var toEl = slideEls[i];
+  var tr = transition || { type: 'hardcut', dur: 0 };
+
+  if (tr.type === 'hardcut' || !fromEl) {
+    if (fromEl) fromEl.classList.remove('on');
+    toEl.style.transition = 'none'; toEl.classList.add('on'); void toEl.offsetWidth;
+    toEl.style.transition = '';
+    startSlide(i);
+  } else if (tr.type === 'crossfade' || tr.type === 'fade') {
+    toEl.style.transition = 'opacity ' + tr.dur + 'ms linear';
+    fromEl.style.transition = 'opacity ' + tr.dur + 'ms linear';
+    toEl.classList.add('on');
+    fromEl.classList.remove('on');
+    startSlide(i);
+    setTimeout(function () { toEl.style.transition = ''; fromEl.style.transition = ''; }, tr.dur + 50);
+  } else if (tr.type === 'fadedark') {
+    blackout.style.transition = 'opacity ' + (tr.dur / 2) + 'ms linear';
+    blackout.style.opacity = 1;
+    setTimeout(function () {
+      fromEl.classList.remove('on');
+      toEl.style.transition = 'none'; toEl.classList.add('on'); void toEl.offsetWidth;
+      toEl.style.transition = '';
+      startSlide(i);
+      blackout.style.opacity = 0;
+    }, tr.dur / 2);
+  }
+}
+
+function advance() {
+  if (current >= N_SLIDES - 1) return;          /* S6 holds */
+  goTo(current + 1, TRANSITIONS[current + 1]);
+}
+
+/* ── Tap navigation: right 70% next, left 30% back ── */
+stage.addEventListener('pointerdown', function (e) {
+  if (!gate.classList.contains('hide')) return;
+  if (e.target.closest('.ctrl-btn') || e.target.closest('.goal-cta')) return;
+  var rect = stage.getBoundingClientRect();
+  var x = (e.clientX - rect.left) / rect.width;
+  if (x <= 0.3) {
+    if (current > 0) goTo(current - 1, { type: 'fade', dur: 250 });
+  } else {
+    if (current < N_SLIDES - 1) goTo(current + 1, TRANSITIONS[current + 1]);
+    /* S6: tap does not advance; CTA only */
+  }
+});
+
+/* ── CTA handoff ── */
+document.getElementById('goalCta').addEventListener('click', function (e) {
+  e.stopPropagation();
+  sfxChime(1046.5);
+  stopAllAudio(true); clearSlideTimers();
+  if (EMBED && window.self !== window.top) {
+    window.parent.postMessage({ type: 'startSession' }, '*');
+  } else {
+    console.log('[carousel] onStart — start session');
+    goTo(0, { type: 'fadedark', dur: 400 });    /* prototype: restart */
+  }
+});
+
+/* ── parent control (embed): allow restart when re-shown ── */
+window.addEventListener('message', function (e) {
+  var d = e.data || {};
+  if (d.type === 'restartCarousel') {
+    if (gate.classList.contains('hide')) goTo(0, { type: 'hardcut', dur: 0 });
+  }
+});
+
+/* ── Tap-to-start gate (unlocks WebAudio) ── */
+gate.addEventListener('pointerdown', function (e) {
+  e.stopPropagation();
+  audioInit();
+  if (AC && AC.state === 'suspended') AC.resume();
+  gate.classList.add('hide');
+  goTo(0, { type: 'hardcut', dur: 0 });
+});
+</script>
+</body>
+</html>

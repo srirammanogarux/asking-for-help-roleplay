@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Stimuler — Asking for Leave (Roleplay)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Urbanist', sans-serif;
+    background: #0D0D0D;
+    color: #fff;
+    width: 100vw; height: 100vh; height: 100dvh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ─── Phone shell (mobile-first; desktop centers a phone) ─── */
+  .phone-shell { width: 100%; height: 100%; position: relative; }
+  .phone-frame { width: 100%; height: 100%; position: relative; overflow: hidden; background: #000; }
+
+  @media (min-width: 500px) {
+    body {
+      background: #000000;   /* black backdrop behind the device */
+    }
+    .phone-shell {
+      /* scale to fit viewport height while keeping the device aspect ratio; flex-centered by body */
+      width: min(390px, calc(96vh * 390 / 844));
+      height: auto; aspect-ratio: 390 / 844;
+      border-radius: 44px;
+      box-shadow: 0 0 0 10px #1a1a1a, 0 0 0 12px #2a2a2a, 0 30px 80px rgba(0,0,0,.32), 0 10px 30px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+    .phone-frame { border-radius: 34px; overflow: hidden; }
+  }
+
+  /* ─── View system (for future roleplay screens) ─── */
+  .view {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    background: #000; will-change: transform, opacity;
+    transform: translateX(100%); opacity: 0;
+    transition: transform .42s cubic-bezier(.22,.61,.36,1), opacity .42s cubic-bezier(.22,.61,.36,1);
+  }
+  .view.v-active { transform: translateX(0); opacity: 1; z-index: 3; }
+  .view.v-behind { transform: translateX(-22%); opacity: 0; z-index: 2; }
+
+  /* ─── Status bar ─── */
+  .status-bar {
+    height: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 18px; font-family: 'Inter', sans-serif;
+    position: relative; z-index: 5;
+  }
+  .sb-time { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: .3px; }
+  .sb-right { display: flex; align-items: center; gap: 5px; color: rgba(255,255,255,.92); }
+  .sb-net { font-size: 9px; font-weight: 600; line-height: 1; text-align: center; opacity: .85; }
+  .sb-net small { display: block; font-size: 7px; opacity: .8; }
+  .sb-ico { width: 14px; height: 14px; display: block; }
+  .sb-batt { display: flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; }
+  .sb-batt-shell {
+    width: 22px; height: 11px; border: 1.3px solid rgba(255,255,255,.9); border-radius: 3px;
+    position: relative; padding: 1.3px;
+  }
+  .sb-batt-shell::after {
+    content: ''; position: absolute; right: -3px; top: 3px; width: 2px; height: 5px;
+    background: rgba(255,255,255,.9); border-radius: 0 2px 2px 0;
+  }
+  .sb-batt-fill { height: 100%; width: 42%; background: #fff; border-radius: 1px; }
+
+  /* ─── Scrollable topics screen ─── */
+  .topics-scroll {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 16px 48px;
+    scrollbar-width: none;
+  }
+  .topics-scroll::-webkit-scrollbar { display: none; }
+
+  /* Banner card */
+  .tc-banner {
+    position: relative; height: 152px; border-radius: 18px;
+    background: #141414; border: 1.2px solid #323232;
+    overflow: hidden; margin-bottom: 26px;
+  }
+  .tc-banner-glow {
+    position: absolute; right: -10px; top: 4px; width: 220px; height: 200px;
+    background: radial-gradient(ellipse 50% 48% at 50% 50%, rgba(67,60,51,.95) 0%, transparent 70%);
+    filter: blur(34px); pointer-events: none;
+  }
+  .tc-banner-sarah {
+    position: absolute; right: -6px; bottom: 0; height: 165px; width: auto;
+    object-fit: contain; pointer-events: none; user-select: none;
+  }
+  .tc-banner-text {
+    position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
+    width: 195px; font-family: 'Urbanist', sans-serif; font-weight: 500;
+    font-size: 21px; line-height: 27px; color: #d3d3d3; word-break: break-word;
+  }
+
+  /* Topic row */
+  .topic-row {
+    display: flex; align-items: center; gap: 18px;
+    width: 100%; cursor: pointer; user-select: none;
+    padding: 2px 0; transition: opacity .18s ease, transform .12s ease;
+  }
+  .topic-row:active { transform: scale(.985); }
+  .topic-row.is-locked { opacity: .82; }
+
+  /* The active (Introduction) row sits apart with extra space below */
+  .topic-active { margin-bottom: 34px; }
+
+  /* Avatar = outer thin ring + inner colored circle holding the bitmoji */
+  .ava {
+    position: relative; flex-shrink: 0;
+    width: 74px; height: 74px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ava-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid #D9D9D9; box-sizing: border-box;
+  }
+  .ava-inner {
+    position: relative; width: 58px; height: 58px; border-radius: 50%;
+    overflow: hidden; display: flex; align-items: flex-end; justify-content: center;
+  }
+  .ava-inner img {
+    width: 118%; height: 118%; object-fit: cover; object-position: center top;
+    pointer-events: none; user-select: none;
+  }
+
+  /* Active ring + glow */
+  .topic-active .ava-ring {
+    border-color: #2f6e3f;
+    box-shadow: 0 0 0 1px rgba(80,180,110,.25), 0 0 16px rgba(80,180,110,.35);
+  }
+
+  .topic-label {
+    font-family: 'Inter', sans-serif; font-weight: 400;
+    font-size: 21px; line-height: 1.18; color: #fff; word-break: break-word;
+  }
+  .topic-active .topic-label {
+    font-family: 'Urbanist', sans-serif; font-weight: 600; color: #62a064; line-height: 1.32;
+  }
+
+  .topics-list { display: flex; flex-direction: column; gap: 22px; }
+
+  /* ─── Roleplay context — story carousel (embedded) ─── */
+  #view-context { background: #0d0615; }
+
+  /* ─── Conversation flow (embedded prototype) ─── */
+  #view-conversation { background: #000; }
+  .conv-frame { width: 100%; height: 100%; border: 0; display: block; background: #000; }
+  .conv-back {
+    position: absolute; top: 60px; left: 20px; z-index: 12;
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    color: #fff; cursor: pointer; transition: transform .12s ease;
+  }
+  .conv-back:active { transform: scale(.92); }
+  .conv-back svg { width: 17px; height: 17px; }
+
+  /* ─── Presenter case chips — OUTSIDE the mockup (for stakeholder demos) ─── */
+  .demo-chips {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    display: none; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+    background: rgba(15,15,20,.92); border: 1px solid rgba(255,255,255,.1);
+    padding: 10px 14px; border-radius: 16px; z-index: 100; max-width: 94vw;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .demo-chips.show { display: flex; }
+  .dc-label { color: #7c5cff; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 700; margin-right: 2px; font-family: 'Inter', sans-serif; }
+  .demo-chip {
+    border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: #cfd0d6;
+    border-radius: 100px; padding: 8px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: 'Inter', sans-serif; transition: all .18s ease;
+  }
+  .demo-chip:hover { border-color: rgba(124,92,255,.55); }
+  .demo-chip.active { background: #6a4ff0; border-color: #6a4ff0; color: #fff; }
+  .demo-pb {
+    width: 34px; height: 34px; border-radius: 50%; flex: none; padding: 0;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color: #fff;
+    font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'Inter', sans-serif; transition: all .15s ease;
+  }
+  .demo-pb:hover { border-color: rgba(124,92,255,.6); }
+  .demo-pb:active { transform: scale(.92); }
+  .dc-sep { width: 1px; height: 22px; background: rgba(255,255,255,.14); margin: 0 5px; }
+
+  /* ─── Toast ─── */
+  .toast {
+    position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%) translateY(14px);
+    background: rgba(28,28,28,.96); border: 1px solid rgba(255,255,255,.08);
+    color: #fff; font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 500;
+    padding: 11px 18px; border-radius: 100px; white-space: nowrap; z-index: 50;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="phone-shell">
+  <div class="phone-frame">
+
+    <!-- ═══ VIEW: Topics list (Chat with Sarah) ═══ -->
+    <div class="view v-active" id="view-topics">
+      <div class="status-bar">
+        <div class="sb-time">3:34</div>
+        <div class="sb-right">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg>
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3 8a9 9 0 0 1 18 0c0 7 3 9 3 9H0s3-2 3-9"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <div class="sb-net">9.10<small>MB/S</small></div>
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 18.5a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z"/><path d="M12 13.2c-2 0-3.9.8-5.3 2.1l1.7 1.7A5 5 0 0 1 12 15.6c1.4 0 2.6.5 3.6 1.4l1.7-1.7A7.5 7.5 0 0 0 12 13.2Z" opacity=".95"/><path d="M12 8c-3.4 0-6.5 1.4-8.7 3.6l1.7 1.7A9.8 9.8 0 0 1 12 10.4c2.8 0 5.3 1.1 7 2.9l1.7-1.7A12.3 12.3 0 0 0 12 8Z" opacity=".55"/></svg>
+          <div class="sb-net" style="font-size:8px">Vo<small>LTE</small></div>
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="14" width="3.4" height="6" rx="1"/><rect x="7" y="10" width="3.4" height="10" rx="1"/><rect x="12" y="6" width="3.4" height="14" rx="1" opacity=".5"/><rect x="17" y="3" width="3.4" height="17" rx="1" opacity=".5"/></svg>
+          <div class="sb-batt">
+            <span style="font-size:10px">42</span>
+            <div class="sb-batt-shell"><div class="sb-batt-fill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="topics-scroll" id="topics-scroll">
+        <!-- Banner -->
+        <div class="tc-banner">
+          <div class="tc-banner-glow"></div>
+          <img class="tc-banner-sarah" src="flow-assets/banner-sarah.png" alt="" />
+          <div class="tc-banner-text">Start here to Unlock all topics to chat</div>
+        </div>
+
+        <!-- Active topic -->
+        <div class="topic-row topic-active" onclick="openScenario('introduction')">
+          <div class="ava">
+            <div class="ava-ring"></div>
+            <div class="ava-inner" style="background:#152c19"><img src="flow-assets/av-introduction.png" alt="" /></div>
+          </div>
+          <div class="topic-label">Introduction&nbsp;- let's<br>know about you</div>
+        </div>
+
+        <!-- Locked / other topics -->
+        <div class="topics-list" id="topics-list"></div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <!-- ═══ VIEW: Roleplay context — story carousel (embedded) ═══ -->
+    <div class="view" id="view-context">
+      <iframe id="ctx-frame" class="conv-frame" title="Context story carousel" allow="autoplay"></iframe>
+    </div>
+
+    <!-- ═══ VIEW: Conversation flow (embedded prototype, fills the mockup) ═══ -->
+    <div class="view" id="view-conversation">
+      <iframe id="conv-frame" class="conv-frame" title="Conversation flow" allow="autoplay"></iframe>
+    </div>
+
+  </div>
+</div>
+
+<!-- Presenter case chips — sit OUTSIDE the phone mockup (visible during the conversation) -->
+<div class="demo-chips" id="demoChips">
+  <button class="demo-pb" id="pbPrev" title="Previous chat">⏮</button>
+  <button class="demo-pb" id="pbToggle" data-paused="0" title="Pause / Play">⏸</button>
+  <button class="demo-pb" id="pbNext" title="Next chat">⏭</button>
+  <button class="demo-pb" id="pbRestart" title="Restart">↻</button>
+  <span class="dc-sep"></span>
+  <span class="dc-label">Demo case</span>
+  <button class="demo-chip" data-id="poor">Poor response</button>
+  <button class="demo-chip" data-id="guided">Guided response</button>
+  <button class="demo-chip" data-id="perfect">Perfect response</button>
+  <button class="demo-chip" data-id="timesup">Time's up</button>
+</div>
+
+<script>
+/* ─── Topic data ───────────────────────────────────────────── */
+var TOPICS = [
+  { id: 'rude-boss',     label: 'Asking for leave to a<br>rude boss', img: 'av-rude-boss.png',     bg: '#746344', live: true },
+  { id: 'movies',        label: 'Movies',                              img: 'av-movies.png',         bg: '#746a44' },
+  { id: 'hobbies',       label: 'Hobbies',                             img: 'av-hobbies.png',        bg: '#444a74' },
+  { id: 'salary',        label: 'Salary Negotiating<br>with manager',  img: 'av-salary.png',         bg: '#746344' },
+  { id: 'team-conflict', label: 'Team conflict<br>resolution',         img: 'av-team-conflict.png',  bg: '#745944' },
+  { id: 'career-goals',  label: 'Talking about career<br>goals',       img: 'av-career-goals.png',   bg: '#744466' },
+  { id: 'work',          label: 'Work',                                img: 'av-work.png',           bg: '#445f74' },
+  { id: 'technology',    label: 'Technology',                          img: 'av-technology.png',     bg: '#4c4474' },
+  { id: 'coffee',        label: 'Morning coffee<br>break at office<br>kitchen', img: 'av-coffee.png', bg: '#445f74' },
+  { id: 'education',     label: 'Education',                           img: 'av-education.png',      bg: '#746a44' },
+  { id: 'cultural-fit',  label: 'Cultural fit and<br>team dynamics',   img: 'av-cultural-fit.png',   bg: '#445f74' },
+  { id: 'adapting',      label: 'Adapting to change',                  img: 'av-adapting.png',       bg: '#707444' },
+  { id: 'leadership',    label: 'Leadership and initiative',           img: 'av-leadership.png',     bg: '#445874' },
+  { id: 'alignment',     label: 'Alignment with<br>company values',    img: 'av-alignment.png',      bg: '#445f74' },
+  { id: 'sports',        label: 'Sports',                              img: 'av-sports.png',         bg: '#746144' },
+  { id: 'family',        label: 'Family',                              img: 'av-family.png',         bg: '#445f74' }
+];
+
+function buildTopics() {
+  var html = '';
+  TOPICS.forEach(function (t) {
+    html +=
+      '<div class="topic-row ' + (t.live ? '' : 'is-locked') + '" onclick="openScenario(\'' + t.id + '\')">' +
+        '<div class="ava">' +
+          '<div class="ava-ring"></div>' +
+          '<div class="ava-inner" style="background:' + t.bg + '"><img src="flow-assets/' + t.img + '" alt="" /></div>' +
+        '</div>' +
+        '<div class="topic-label">' + t.label + '</div>' +
+      '</div>';
+  });
+  document.getElementById('topics-list').innerHTML = html;
+}
+
+/* ─── Toast ─── */
+var toastTimer = null;
+function showToast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+}
+
+/* ─── View navigation (simple slide stack) ─── */
+function navTo(id) {
+  var cur = document.querySelector('.view.v-active');
+  var next = document.getElementById('view-' + id);
+  if (!next || cur === next) return;
+  next.classList.remove('v-behind');
+  next.classList.add('v-active');
+  if (cur) { cur.classList.remove('v-active'); cur.classList.add('v-behind'); }
+}
+function navBack() {
+  var cur = document.querySelector('.view.v-active');
+  var prev = document.querySelector('.view.v-behind');
+  if (prev) { prev.classList.remove('v-behind'); prev.classList.add('v-active'); }
+  if (cur && cur !== prev) { cur.classList.remove('v-active'); }
+  showDemoChips(false);
+}
+
+/* ─── Presenter case chips (outside the mockup) ─── */
+function showDemoChips(show) {
+  var el = document.getElementById('demoChips');
+  if (el) el.classList.toggle('show', !!show);
+}
+function convPost(msg) {
+  var f = document.getElementById('conv-frame');
+  if (f && f.contentWindow) f.contentWindow.postMessage(msg, '*');
+}
+function setPlaybackUI(paused) {
+  var t = document.getElementById('pbToggle');
+  if (t) { t.dataset.paused = paused ? '1' : '0'; t.textContent = paused ? '▶' : '⏸'; }
+}
+window.addEventListener('message', function (e) {
+  if (!e.data) return;
+  if (e.data.type === 'back') navBack();
+  if (e.data.type === 'startSession') startConversation();  /* carousel CTA */
+});
+function wireDemoChips() {
+  document.querySelectorAll('.demo-chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      convPost({ type: 'playCase', id: b.dataset.id });
+      document.querySelectorAll('.demo-chip').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      setPlaybackUI(false); /* a fresh case always starts playing */
+    });
+  });
+  var pbToggle = document.getElementById('pbToggle');
+  if (pbToggle) pbToggle.addEventListener('click', function () {
+    var nowPaused = pbToggle.dataset.paused !== '1';
+    convPost({ type: nowPaused ? 'pause' : 'resume' });
+    setPlaybackUI(nowPaused);
+  });
+  var pbRestart = document.getElementById('pbRestart');
+  if (pbRestart) pbRestart.addEventListener('click', function () {
+    convPost({ type: 'restart' });
+    setPlaybackUI(false);
+  });
+  var pbPrev = document.getElementById('pbPrev');
+  if (pbPrev) pbPrev.addEventListener('click', function () { convPost({ type: 'step', dir: -1 }); setPlaybackUI(true); });
+  var pbNext = document.getElementById('pbNext');
+  if (pbNext) pbNext.addEventListener('click', function () { convPost({ type: 'step', dir: 1 }); setPlaybackUI(true); });
+}
+
+/* ─── Tap a topic ─── */
+function openScenario(id) {
+  if (id === 'rude-boss') {
+    /* (re)load the story carousel so it always opens fresh at its tap-to-start gate */
+    var cf = document.getElementById('ctx-frame');
+    if (cf) cf.src = 'context-carousel.html?embed=1&t=' + Date.now(); /* cache-bust while iterating */
+    navTo('context');
+  } else if (id === 'introduction') {
+    showToast('Introduction — let\'s get to know you');
+  } else {
+    showToast('Finish the Introduction to unlock this');
+  }
+}
+
+/* ─── Context screen CTA → play the conversation flow INSIDE the mockup ─── */
+function startConversation() {
+  var f = document.getElementById('conv-frame');
+  if (f) { f.src = 'roleplay-conversation.html?embed=1&t=' + Date.now(); } /* (re)load → auto-plays the poor case; cache-busted */
+  navTo('conversation');
+  document.querySelectorAll('.demo-chip').forEach(function (x) {
+    x.classList.toggle('active', x.dataset.id === 'poor');   /* reflect the auto-played case */
+  });
+  setPlaybackUI(false);
+  showDemoChips(true);
+}
+
+buildTopics();
+wireDemoChips();
+</script>
+</body>
+</html>
